@@ -1,0 +1,15 @@
+{
+  "name": "cclaunch",
+  "version": "0.1.0",
+  "description": "Queue tasks, auto-launch Claude Code in a cmux workspace",
+  "type": "module",
+  "bin": {
+    "cclaunch": "src/cli.js"
+  },
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}
