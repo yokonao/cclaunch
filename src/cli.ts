@@ -1,13 +1,17 @@
 #!/usr/bin/env bun
-import { mkdirSync, statSync, watch } from "node:fs";
-import { basename, resolve } from "node:path";
+import { mkdirSync, watch } from "node:fs";
+import { basename } from "node:path";
 import { parseArgs } from "node:util";
+import { enqueue } from "./add.ts";
 import * as cmux from "./cmux.ts";
 import * as pick from "./pick.ts";
 import * as queue from "./queue.ts";
+import * as web from "./web.ts";
 
-const USAGE = `cclaunch run                          watch the queue and launch tasks (run inside cmux)
+const USAGE = `cclaunch run [--port <n>]             watch the queue and launch tasks (run inside cmux)
 cclaunch add [-C <dir>] "<prompt>"   append a task; without -C, Claude picks the directory
+
+--port also serves a one-field web form on 127.0.0.1, for prompts too long to type in a shell.
 
 queue:  ${queue.FILE}  (reorder / delete with $EDITOR)
 config: ${pick.CONFIG_FILE}  ({"roots": ["~/src"], "depth": 4})`;
@@ -33,25 +37,27 @@ async function cmdAdd(argv: string[]): Promise<void> {
     die(message(e));
   }
 
-  let cwd = values.cwd ? resolve(values.cwd) : undefined;
-  const prompt = positionals.join(" ").trim();
-  if (!prompt) die("prompt is required");
-
-  if (!cwd) {
-    const dirs = pick.candidates(pick.config());
-    if (!dirs.length) die(`no repositories found under the roots in ${pick.CONFIG_FILE}`);
-    cwd = await pick.pick(prompt, dirs);
-    if (!cwd) die(`could not tell which directory this belongs to; pass -C\n\n${dirs.join("\n")}`);
+  let task: queue.Task;
+  try {
+    task = await enqueue(positionals.join(" "), values.cwd);
+  } catch (e) {
+    die(message(e));
   }
-  if (!statSync(cwd, { throwIfNoEntry: false })?.isDirectory()) die(`not a directory: ${cwd}`);
-
-  const task: queue.Task = { id: queue.newId(), cwd, prompt };
-  queue.add(task);
-  log(`queued ${task.id}  ${cwd}  ${prompt}`);
+  log(`queued ${task.id}  ${task.cwd}  ${task.prompt}`);
 }
 
-async function cmdRun(): Promise<never> {
+async function cmdRun(argv: string[]): Promise<never> {
+  let values: { port?: string };
+  try {
+    ({ values } = parseArgs({ args: argv, options: { port: { type: "string" } } }));
+  } catch (e) {
+    die(message(e));
+  }
+  const port = values.port === undefined ? undefined : Number(values.port);
+  if (port !== undefined && !Number.isInteger(port)) die(`not a port: ${values.port}`);
+
   mkdirSync(queue.DIR, { recursive: true });
+  if (port !== undefined) web.serve(port, log);
 
   let wake: () => void = () => {};
   // Watch the directory, not the file: `remove` replaces it via rename.
@@ -95,5 +101,5 @@ async function cmdRun(): Promise<never> {
 
 const [cmd, ...args] = process.argv.slice(2);
 if (cmd === "add") await cmdAdd(args);
-else if (cmd === "run") await cmdRun();
+else if (cmd === "run") await cmdRun(args);
 else die(cmd ? `unknown command "${cmd}"` : "no command given");
