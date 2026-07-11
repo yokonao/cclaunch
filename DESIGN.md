@@ -95,6 +95,6 @@ dedup 目的がなくても入れる価値がある。
 - **ワークスペース名**: `new-workspace --name` がある。`rename-workspace` の後追いは不要。
 - **prompt のクォート**: `--command` は「シェルに text+Enter を送る」もので、argv ではない。
   したがってシェルクォートは必須。`'` を `'\''` に置換する POSIX の単引用符エスケープで囲む
-  (`shellQuote` in `src/cmux.js`)。`--cwd` があるので `cd <cwd> &&` は要らない。
+  (`shellQuote` in `src/cmux.ts`)。`--cwd` があるので `cd <cwd> &&` は要らない。
 - **dedup**: `cmux workspace list --json` の JSON から name/title を再帰的に集めて突き合わせる。
   形を決め打ちすると、外した時に「起動済み」と誤判定してタスクを黙って捨てる。そこだけは寛容に読む。

@@ -4,12 +4,17 @@
   "description": "Queue tasks, auto-launch Claude Code in a cmux workspace",
   "type": "module",
   "bin": {
-    "cclaunch": "src/cli.js"
+    "cclaunch": "src/cli.ts"
   },
   "files": [
     "src"
   ],
-  "engines": {
-    "node": ">=20"
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
   }
 }
