@@ -1,4 +1,6 @@
-import type { Task } from "./queue.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { promptFile, type Task } from "./queue.ts";
 
 async function cmux(...args: string[]): Promise<string> {
   const proc = Bun.spawn(["cmux", ...args], { stdout: "pipe", stderr: "pipe" });
@@ -13,8 +15,12 @@ async function cmux(...args: string[]): Promise<string> {
 
 export const workspaceName = (id: string): string => `cclaunch-${id}`;
 
-// `--command` is typed into the workspace's shell, so the prompt needs quoting.
+// `--command` is typed into the workspace's shell. Rather than quote the prompt
+// into it, write the prompt to a file and let the shell read it back, so nothing
+// the user typed is ever parsed as shell syntax. Only our own path is quoted.
 export const shellQuote = (s: string): string => `'${s.replaceAll("'", `'\\''`)}'`;
+
+export const command = (id: string): string => `claude "$(cat ${shellQuote(promptFile(id))})"`;
 
 // Shape-agnostic: cmux's JSON nests workspaces, and the name field has been
 // spelled both `name` and `title`. Matching on a wrong shape would silently
@@ -36,13 +42,8 @@ export async function hasWorkspace(name: string): Promise<boolean> {
 }
 
 export async function launch({ id, cwd, prompt }: Task): Promise<void> {
-  await cmux(
-    "new-workspace",
-    "--name",
-    workspaceName(id),
-    "--cwd",
-    cwd,
-    "--command",
-    `claude ${shellQuote(prompt)}`,
-  );
+  const file = promptFile(id);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, prompt);
+  await cmux("new-workspace", "--name", workspaceName(id), "--cwd", cwd, "--command", command(id));
 }

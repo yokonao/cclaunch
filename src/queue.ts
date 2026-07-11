@@ -11,6 +11,7 @@ export type Task = {
 
 export const DIR = join(homedir(), ".cclaunch");
 export const FILE = join(DIR, "queue.jsonl");
+export const promptFile = (id: string): string => join(DIR, "prompts", `${id}.txt`);
 
 export const newId = (): string => Date.now().toString(36) + randomBytes(3).toString("hex");
 
