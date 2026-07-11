@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { mkdirSync, statSync, watch } from "node:fs";
 import { basename, resolve } from "node:path";
+import { parseArgs } from "node:util";
 import * as cmux from "./cmux.ts";
 import * as pick from "./pick.ts";
 import * as queue from "./queue.ts";
@@ -20,13 +21,20 @@ function die(msg: string): never {
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-async function cmdAdd(args: string[]): Promise<void> {
-  let cwd: string | undefined;
-  if (args[0] === "-C") {
-    cwd = resolve(args[1] ?? die("-C needs a directory"));
-    args = args.slice(2);
+async function cmdAdd(argv: string[]): Promise<void> {
+  let values: { cwd?: string }, positionals: string[];
+  try {
+    ({ values, positionals } = parseArgs({
+      args: argv,
+      options: { cwd: { type: "string", short: "C" } },
+      allowPositionals: true,
+    }));
+  } catch (e) {
+    die(message(e));
   }
-  const prompt = args.join(" ").trim();
+
+  let cwd = values.cwd ? resolve(values.cwd) : undefined;
+  const prompt = positionals.join(" ").trim();
   if (!prompt) die("prompt is required");
 
   if (!cwd) {
