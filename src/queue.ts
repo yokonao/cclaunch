@@ -3,6 +3,11 @@ import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+// JSONL, and pending only. The queue has no list/remove/reorder commands because
+// $EDITOR is the UI: a human reorders lines by hand. A format that is not
+// line-oriented and hand-editable (SQLite, a file per task) would take that away.
+// Keeping done entries would too -- then `remove` has to decide between deleting
+// and flagging, instead of just dropping the line.
 export type Task = {
   id: string;
   cwd: string;

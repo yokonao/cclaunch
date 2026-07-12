@@ -5,6 +5,8 @@ import * as pick from "./pick.ts";
 import * as queue from "./queue.ts";
 
 // Shared by the CLI and the web form: both only append to the queue.
+// The directory is resolved here, not at launch: a queued line carries everything
+// needed to start, and a bad guess surfaces while the user is still watching.
 export async function enqueue(rawPrompt: string, rawCwd?: string): Promise<queue.Task> {
   const prompt = rawPrompt.trim();
   if (!prompt) throw new Error("prompt is required");
