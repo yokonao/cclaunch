@@ -48,13 +48,7 @@ async function cmdAdd(argv: string[]): Promise<void> {
 
 async function cmdRun(): Promise<never> {
   mkdirSync(queue.DIR, { recursive: true });
-  // The form is a convenience; launching is the job. A taken port must not take
-  // the runner down with it.
-  try {
-    web.serve(config.config().port, log);
-  } catch (e) {
-    log(`no web form: ${message(e)}`);
-  }
+  web.serve(config.config().port, log);
 
   let wake: () => void = () => {};
   // Watch the directory, not the file: `remove` replaces it via rename.
