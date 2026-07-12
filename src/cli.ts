@@ -4,17 +4,17 @@ import { basename } from "node:path";
 import { parseArgs } from "node:util";
 import { enqueue } from "./add.ts";
 import * as cmux from "./cmux.ts";
-import * as pick from "./pick.ts";
+import * as config from "./config.ts";
 import * as queue from "./queue.ts";
 import * as web from "./web.ts";
 
-const USAGE = `cclaunch run [--port <n>]             watch the queue and launch tasks (run inside cmux)
-cclaunch add [-C <dir>] "<prompt>"   append a task; without -C, Claude picks the directory
+const USAGE = `cclaunch run                         watch the queue and launch tasks (run inside cmux)
+cclaunch add [-C <dir>] "<prompt>"  append a task; without -C, Claude picks the directory
 
---port also serves a one-field web form on 127.0.0.1, for prompts too long to type in a shell.
+run also serves a one-field web form on 127.0.0.1, for prompts too long to type in a shell.
 
 queue:  ${queue.FILE}  (reorder / delete with $EDITOR)
-config: ${pick.CONFIG_FILE}  ({"roots": ["~/src"], "depth": 4})`;
+config: ${config.FILE}  ${JSON.stringify(config.DEFAULT)}`;
 
 const log = (...args: unknown[]): void => console.log(new Date().toISOString(), ...args);
 
@@ -46,18 +46,15 @@ async function cmdAdd(argv: string[]): Promise<void> {
   log(`queued ${task.id}  ${task.cwd}  ${task.prompt}`);
 }
 
-async function cmdRun(argv: string[]): Promise<never> {
-  let values: { port?: string };
-  try {
-    ({ values } = parseArgs({ args: argv, options: { port: { type: "string" } } }));
-  } catch (e) {
-    die(message(e));
-  }
-  const port = values.port === undefined ? undefined : Number(values.port);
-  if (port !== undefined && !Number.isInteger(port)) die(`not a port: ${values.port}`);
-
+async function cmdRun(): Promise<never> {
   mkdirSync(queue.DIR, { recursive: true });
-  if (port !== undefined) web.serve(port, log);
+  // The form is a convenience; launching is the job. A taken port must not take
+  // the runner down with it.
+  try {
+    web.serve(config.config().port, log);
+  } catch (e) {
+    log(`no web form: ${message(e)}`);
+  }
 
   let wake: () => void = () => {};
   // Watch the directory, not the file: `remove` replaces it via rename.
@@ -101,5 +98,5 @@ async function cmdRun(argv: string[]): Promise<never> {
 
 const [cmd, ...args] = process.argv.slice(2);
 if (cmd === "add") await cmdAdd(args);
-else if (cmd === "run") await cmdRun(args);
+else if (cmd === "run") await cmdRun();
 else die(cmd ? `unknown command "${cmd}"` : "no command given");

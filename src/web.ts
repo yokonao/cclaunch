@@ -1,4 +1,6 @@
+import { homedir } from "node:os";
 import { enqueue } from "./add.ts";
+import * as config from "./config.ts";
 import * as pick from "./pick.ts";
 
 const CSS = `
@@ -138,6 +140,36 @@ kbd {
 }
 .flash.err { border-left-color: var(--danger); color: var(--danger); white-space: pre-wrap; }
 .flash .path { font-family: var(--mono); font-size: 0.82rem; color: var(--muted); }
+.combo { position: relative; }
+.combo ul {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  z-index: 10;
+  max-height: 260px;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+}
+.combo ul[hidden] { display: none; }
+.combo li {
+  padding: 7px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.combo li[aria-selected="true"] { background: var(--accent-soft); }
+.combo li .name { font-size: 0.88rem; font-weight: 600; }
+.combo li .parent {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--faint);
+  overflow-wrap: anywhere;
+}
 `;
 
 const escape = (s: string): string =>
@@ -146,7 +178,10 @@ const escape = (s: string): string =>
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
   );
 
-function page(flash: string, dirs: string[]): string {
+// `</script>` inside a path would end the tag early.
+const json = (v: unknown): string => JSON.stringify(v).replace(/</g, "\\u003c");
+
+function page(flash: string, dirs: string[], home: string): string {
   return `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -164,10 +199,11 @@ function page(flash: string, dirs: string[]): string {
       <label for="prompt">Prompt</label>
       <textarea id="prompt" name="prompt" autofocus placeholder="What should Claude do?"></textarea>
     </div>
-    <div class="field">
+    <div class="field combo">
       <label for="cwd">Directory</label>
-      <input id="cwd" name="cwd" list="dirs" placeholder="leave empty and Claude picks one">
-      <datalist id="dirs">${dirs.map((d) => `<option value="${escape(d)}">`).join("")}</datalist>
+      <input id="cwd" name="cwd" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="dirs"
+             placeholder="leave empty and Claude picks one">
+      <ul id="dirs" role="listbox" hidden></ul>
     </div>
     <div class="actions">
       <button type="submit">Queue</button>
@@ -179,6 +215,66 @@ function page(flash: string, dirs: string[]): string {
 document.querySelector('textarea').addEventListener('keydown', (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') e.target.form.requestSubmit();
 });
+
+const DIRS = ${json(dirs)};
+const HOME = ${json(home)};
+const input = document.getElementById('cwd');
+const list = document.getElementById('dirs');
+let active = -1;
+
+// The full path is what gets submitted, but it is too long to read; show the
+// repo name first and the parent, home-abbreviated, underneath.
+const render = () => {
+  const q = input.value.trim().toLowerCase();
+  const hits = DIRS.filter((d) => d.toLowerCase().includes(q)).slice(0, 50);
+  active = -1;
+  list.replaceChildren(...hits.map((d, i) => {
+    const short = HOME && d.startsWith(HOME + '/') ? '~' + d.slice(HOME.length) : d;
+    const cut = short.lastIndexOf('/');
+    const li = document.createElement('li');
+    li.role = 'option';
+    li.dataset.path = d;
+    li.dataset.i = i;
+    li.innerHTML = '<span class="name"></span><span class="parent"></span>';
+    li.querySelector('.name').textContent = short.slice(cut + 1);
+    li.querySelector('.parent').textContent = short.slice(0, cut) || '/';
+    return li;
+  }));
+  open(hits.length > 0);
+};
+
+const open = (yes) => {
+  list.hidden = !yes;
+  input.setAttribute('aria-expanded', String(yes));
+};
+
+const highlight = (i) => {
+  const items = [...list.children];
+  if (!items.length) return;
+  active = (i + items.length) % items.length;
+  items.forEach((li, n) => li.setAttribute('aria-selected', String(n === active)));
+  items[active].scrollIntoView({ block: 'nearest' });
+};
+
+const choose = (li) => {
+  input.value = li.dataset.path;
+  open(false);
+};
+
+input.addEventListener('input', render);
+input.addEventListener('focus', render);
+input.addEventListener('blur', () => setTimeout(() => open(false), 120));
+input.addEventListener('keydown', (e) => {
+  if (list.hidden) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); highlight(active + 1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(active - 1); }
+  else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); choose(list.children[active]); }
+  else if (e.key === 'Escape') open(false);
+});
+list.addEventListener('mousedown', (e) => {
+  const li = e.target.closest('li');
+  if (li) choose(li);
+});
 </script>`;
 }
 
@@ -186,9 +282,10 @@ const html = (body: string, status = 200): Response =>
   new Response(body, { status, headers: { "content-type": "text/html; charset=utf-8" } });
 
 export function serve(port: number, log: (...args: unknown[]) => void): void {
+  const home = homedir();
   const dirs = (): string[] => {
     try {
-      return pick.candidates(pick.config());
+      return pick.candidates(config.config());
     } catch {
       return [];
     }
@@ -200,7 +297,7 @@ export function serve(port: number, log: (...args: unknown[]) => void): void {
     fetch: async (req) => {
       const { pathname } = new URL(req.url);
       if (pathname !== "/") return new Response("not found", { status: 404 });
-      if (req.method === "GET") return html(page("", dirs()));
+      if (req.method === "GET") return html(page("", dirs(), home));
       if (req.method !== "POST") return new Response("method not allowed", { status: 405 });
 
       const form = await req.formData();
@@ -208,10 +305,10 @@ export function serve(port: number, log: (...args: unknown[]) => void): void {
         const task = await enqueue(String(form.get("prompt") ?? ""), String(form.get("cwd") ?? ""));
         log(`queued ${task.id}  ${task.cwd}  ${task.prompt.split("\n")[0]}`);
         const flash = `<div class="flash">Queued <strong>${escape(task.id)}</strong><div class="path">${escape(task.cwd)}</div></div>`;
-        return html(page(flash, dirs()));
+        return html(page(flash, dirs(), home));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return html(page(`<div class="flash err">${escape(msg)}</div>`, dirs()), 400);
+        return html(page(`<div class="flash err">${escape(msg)}</div>`, dirs(), home), 400);
       }
     },
   });

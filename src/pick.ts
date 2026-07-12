@@ -1,34 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
-import { DIR } from "./queue.ts";
-
-export type Config = { roots: string[]; depth: number };
-
-export const CONFIG_FILE = join(DIR, "config.json");
-
-const DEFAULT: Config = { roots: [join(homedir(), "src")], depth: 4 };
-
-const expand = (p: string): string => (p.startsWith("~") ? homedir() + p.slice(1) : p);
-
-export function config(): Config {
-  let raw: string;
-  try {
-    raw = readFileSync(CONFIG_FILE, "utf8");
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "ENOENT") return DEFAULT;
-    throw e;
-  }
-  const { roots, depth } = JSON.parse(raw) as Partial<Config>;
-  return {
-    roots: (roots ?? DEFAULT.roots).map(expand),
-    depth: depth ?? DEFAULT.depth,
-  };
-}
 
 // A repo is a leaf: once a directory has .git, its subdirectories are its own
 // business, not separate candidates.
-export function candidates({ roots, depth }: Config): string[] {
+export function candidates({ roots, depth }: { roots: string[]; depth: number }): string[] {
   const out: string[] = [];
   const walk = (dir: string, left: number): void => {
     let entries;

@@ -1,5 +1,6 @@
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
+import * as config from "./config.ts";
 import * as pick from "./pick.ts";
 import * as queue from "./queue.ts";
 
@@ -10,8 +11,8 @@ export async function enqueue(rawPrompt: string, rawCwd?: string): Promise<queue
 
   let cwd = rawCwd?.trim() ? resolve(rawCwd.trim()) : undefined;
   if (!cwd) {
-    const dirs = pick.candidates(pick.config());
-    if (!dirs.length) throw new Error(`no repositories found under the roots in ${pick.CONFIG_FILE}`);
+    const dirs = pick.candidates(config.config());
+    if (!dirs.length) throw new Error(`no repositories found under the roots in ${config.FILE}`);
     cwd = await pick.pick(prompt, dirs);
     if (!cwd) throw new Error(`could not tell which directory this belongs to; pick one\n\n${dirs.join("\n")}`);
   }
