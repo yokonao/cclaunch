@@ -4,10 +4,13 @@ import * as config from "./config.ts";
 import * as pick from "./pick.ts";
 import * as queue from "./queue.ts";
 
-// Shared by the CLI and the web form: both only append to the queue.
+// The one door into the queue: the CLI, the web form, and watchers all come through
+// here, and all any of them do is append.
 // The directory is resolved here, not at launch: a queued line carries everything
 // needed to start, and a bad guess surfaces while the user is still watching.
-export async function enqueue(rawPrompt: string, rawCwd?: string): Promise<queue.Task> {
+// `id` is supplied by watchers, which need it to be a deterministic function of the
+// thing they saw -- that is what makes their output idempotent (see watch.ts).
+export async function enqueue(rawPrompt: string, rawCwd?: string, id = queue.newId()): Promise<queue.Task> {
   const prompt = rawPrompt.trim();
   if (!prompt) throw new Error("prompt is required");
 
@@ -20,7 +23,7 @@ export async function enqueue(rawPrompt: string, rawCwd?: string): Promise<queue
   }
   if (!statSync(cwd, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`not a directory: ${cwd}`);
 
-  const task: queue.Task = { id: queue.newId(), cwd, prompt };
+  const task: queue.Task = { id, cwd, prompt };
   queue.add(task);
   return task;
 }
