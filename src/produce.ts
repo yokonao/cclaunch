@@ -3,20 +3,20 @@ import { basename, join } from "node:path";
 import { enqueue } from "./add.ts";
 import { DIR } from "./queue.ts";
 
-// A watcher is an executable that prints task lines to stdout. cclaunch runs it and
+// A producer is an executable that prints task lines to stdout. cclaunch runs it and
 // hands what comes back to enqueue(); it knows nothing about GitHub, Slack, or whatever
-// else the watcher talks to. That is deliberate, and not only for tidiness: a watcher's
+// else the producer talks to. That is deliberate, and not only for tidiness: a producer's
 // query and its prompt carry private things -- repository names, colleagues, tokens --
 // and this repository is public. Keeping the two apart means none of that has anywhere
 // to leak into.
 //
 // cclaunch gives the launched Claude NO isolation: cmux hands it a worktree and a plain
-// shell, with your ssh keys, your gh token, and your filesystem. Whatever a watcher
-// feeds in is read by an agent running as you. So a watcher must only ingest content
+// shell, with your ssh keys, your gh token, and your filesystem. Whatever a producer
+// feeds in is read by an agent running as you. So a producer must only ingest content
 // from authors whose code you would already run unread on this machine -- your own
 // repositories, your colleagues'. A drive-by pull request from a stranger is arbitrary
 // code execution with a language model in the middle, and no filter here is a sandbox.
-export const WATCHERS = join(DIR, "watchers");
+export const PRODUCERS = join(DIR, "producers");
 export const SEEN = join(DIR, "seen");
 
 const TIMEOUT = 60_000;
@@ -28,7 +28,7 @@ export type Line = {
 };
 
 // The id becomes a file name and a cmux workspace name, so it cannot hold a slash. It is
-// also the whole of the deduplication: a watcher is stateless and reprints every obligation
+// also the whole of the deduplication: a producer is stateless and reprints every obligation
 // it can still see on every poll, and only the id says whether that is the same one as last
 // time. Rewriting a malformed one into something legal would quietly break exactly that, so
 // reject it and say so instead.
@@ -64,19 +64,19 @@ function assertPrivate(path: string): void {
   if (statSync(path).mode & 0o022) throw new Error(`group- or world-writable: ${path}`);
 }
 
-export function watchers(): string[] {
-  if (!statSync(WATCHERS, { throwIfNoEntry: false })?.isDirectory()) return [];
-  assertPrivate(WATCHERS);
-  return readdirSync(WATCHERS, { withFileTypes: true })
+export function producers(): string[] {
+  if (!statSync(PRODUCERS, { throwIfNoEntry: false })?.isDirectory()) return [];
+  assertPrivate(PRODUCERS);
+  return readdirSync(PRODUCERS, { withFileTypes: true })
     .filter((e) => !e.name.startsWith(".") && !e.isDirectory())
-    .map((e) => join(WATCHERS, e.name))
+    .map((e) => join(PRODUCERS, e.name))
     .filter((path) => statSync(path).mode & 0o111)
     .sort();
 }
 
 async function run(path: string): Promise<string> {
   assertPrivate(path);
-  const proc = Bun.spawn([path], { stdout: "pipe", stderr: "pipe", cwd: WATCHERS });
+  const proc = Bun.spawn([path], { stdout: "pipe", stderr: "pipe", cwd: PRODUCERS });
   let killed = false;
   const timer = setTimeout(() => {
     killed = true;
@@ -89,7 +89,7 @@ async function run(path: string): Promise<string> {
       proc.exited,
     ]);
     if (killed) throw new Error(`no output after ${TIMEOUT / 1000}s`);
-    // Half a listing is worse than none: a watcher that dies partway looks, to the id
+    // Half a listing is worse than none: a producer that dies partway looks, to the id
     // diff below, exactly like one whose obligations were met. Drop the batch.
     if (code !== 0) throw new Error(stderr.trim() || `exited with ${code}`);
     return stdout;
@@ -100,13 +100,13 @@ async function run(path: string): Promise<string> {
 
 export async function poll(log: (...args: unknown[]) => void): Promise<void> {
   const done = seen();
-  for (const path of watchers()) {
+  for (const path of producers()) {
     const name = basename(path);
     let lines: Line[];
     try {
       lines = parse(await run(path));
     } catch (e) {
-      log(`watcher ${name}: ${e instanceof Error ? e.message : String(e)}`);
+      log(`producer ${name}: ${e instanceof Error ? e.message : String(e)}`);
       continue;
     }
     for (const line of lines) {
@@ -120,7 +120,7 @@ export async function poll(log: (...args: unknown[]) => void): Promise<void> {
         done.add(task.id);
         log(`queued ${task.id}  ${task.cwd}  ${task.prompt}`);
       } catch (e) {
-        log(`watcher ${name}: ${line.id}: ${e instanceof Error ? e.message : String(e)}`);
+        log(`producer ${name}: ${line.id}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
   }

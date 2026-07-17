@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parse } from "./watch.ts";
+import { parse } from "./produce.ts";
 
 const line = (o: object): string => JSON.stringify(o);
 
@@ -22,6 +22,6 @@ test("parse rejects a line with no prompt", () => {
   expect(() => parse(line({ id: "pr-1", prompt: " " }))).toThrow(/prompt is required/);
 });
 
-test("parse fails the batch, not the line: a watcher half-listing its obligations reads as met", () => {
+test("parse fails the batch, not the line: a producer half-listing its obligations reads as met", () => {
   expect(() => parse([line({ id: "pr-1", prompt: "p" }), "{ oh no"].join("\n"))).toThrow();
 });

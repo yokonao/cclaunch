@@ -4,12 +4,12 @@ import * as config from "./config.ts";
 import * as pick from "./pick.ts";
 import * as queue from "./queue.ts";
 
-// The one door into the queue: the CLI, the web form, and watchers all come through
+// The one door into the queue: the CLI, the web form, and producers all come through
 // here, and all any of them do is append.
 // The directory is resolved here, not at launch: a queued line carries everything
 // needed to start, and a bad guess surfaces while the user is still watching.
-// `id` is supplied by watchers, which need it to be a deterministic function of the
-// thing they saw -- that is what makes their output idempotent (see watch.ts).
+// `id` is supplied by producers, which need it to be a deterministic function of the
+// thing they saw -- that is what makes their output idempotent (see produce.ts).
 export async function enqueue(rawPrompt: string, rawCwd?: string, id = queue.newId()): Promise<queue.Task> {
   const prompt = rawPrompt.trim();
   if (!prompt) throw new Error("prompt is required");

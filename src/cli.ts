@@ -5,19 +5,19 @@ import { parseArgs } from "node:util";
 import { enqueue } from "./add.ts";
 import * as cmux from "./cmux.ts";
 import * as config from "./config.ts";
+import * as produce from "./produce.ts";
 import * as queue from "./queue.ts";
-import * as watch from "./watch.ts";
 import * as web from "./web.ts";
 
-const USAGE = `cclaunch run                         watch the queue and launch tasks (run inside cmux)
+const USAGE = `cclaunch run [--producers]           watch the queue and launch tasks (run inside cmux)
 cclaunch add [-C <dir>] "<prompt>"  append a task; without -C, Claude picks the directory
 
-run also serves a one-field web form on 127.0.0.1, for prompts too long to type in a shell,
-and polls the watchers -- executables that print task lines of their own.
+run also serves a one-field web form on 127.0.0.1, for prompts too long to type in a shell.
+With --producers it also polls the producers -- executables that print task lines of their own.
 
-queue:    ${queue.FILE}  (reorder / delete with $EDITOR)
-watchers: ${watch.WATCHERS}  (seen ids: ${watch.SEEN} -- delete a line to run it again)
-config:   ${config.FILE}  ${JSON.stringify(config.DEFAULT)}`;
+queue:     ${queue.FILE}  (reorder / delete with $EDITOR)
+producers: ${produce.PRODUCERS}  (seen ids: ${produce.SEEN} -- delete a line to run it again)
+config:    ${config.FILE}  ${JSON.stringify(config.DEFAULT)}`;
 
 const log = (...args: unknown[]): void => console.log(new Date().toISOString(), ...args);
 
@@ -49,29 +49,43 @@ async function cmdAdd(argv: string[]): Promise<void> {
   log(`queued ${task.id}  ${task.cwd}  ${task.prompt}`);
 }
 
-async function cmdRun(): Promise<never> {
+async function cmdRun(argv: string[]): Promise<never> {
+  let producers: boolean | undefined;
+  try {
+    ({
+      values: { producers },
+    } = parseArgs({ args: argv, options: { producers: { type: "boolean" } } }));
+  } catch (e) {
+    die(message(e));
+  }
+
   mkdirSync(queue.DIR, { recursive: true });
   const { port, interval } = config.config();
   web.serve(port, log);
 
-  // Alongside the launch loop, not inside it: a watcher must still be polled while the
+  // Off by default: polling producers runs whatever executables sit in their directory,
+  // and that is not something `run` should do unasked. --producers opts in.
+  //
+  // Alongside the launch loop, not inside it: a producer must still be polled while the
   // queue is empty and the loop is parked, and a slow one must not hold up a launch.
-  // Skipping a tick that overlaps the last is enough -- watchers are stateless, so the
+  // Skipping a tick that overlaps the last is enough -- producers are stateless, so the
   // next one sees everything this one would have.
-  let polling = false;
-  const poll = async (): Promise<void> => {
-    if (polling) return;
-    polling = true;
-    try {
-      await watch.poll(log);
-    } catch (e) {
-      log(`watchers: ${message(e)}`);
-    } finally {
-      polling = false;
-    }
-  };
-  setInterval(poll, interval * 1000);
-  void poll();
+  if (producers) {
+    let polling = false;
+    const poll = async (): Promise<void> => {
+      if (polling) return;
+      polling = true;
+      try {
+        await produce.poll(log);
+      } catch (e) {
+        log(`producers: ${message(e)}`);
+      } finally {
+        polling = false;
+      }
+    };
+    setInterval(poll, interval * 1000);
+    void poll();
+  }
 
   let wake: () => void = () => {};
   // Watch the directory, not the file: `remove` replaces it via rename.
@@ -115,5 +129,5 @@ async function cmdRun(): Promise<never> {
 
 const [cmd, ...args] = process.argv.slice(2);
 if (cmd === "add") await cmdAdd(args);
-else if (cmd === "run") await cmdRun();
+else if (cmd === "run") await cmdRun(args);
 else die(cmd ? `unknown command "${cmd}"` : "no command given");

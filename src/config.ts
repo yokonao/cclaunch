@@ -12,8 +12,9 @@ export type Config = {
 
 export const FILE = join(DIR, "config.json");
 
-// One interval for every watcher. A watcher that wants to run less often can say nothing
-// most of the time, which is cheaper than teaching cclaunch a schedule.
+// One interval for every producer, and only when `run --producers` asks for the polling
+// at all. A producer that wants to run less often can say nothing most of the time, which
+// is cheaper than teaching cclaunch a schedule.
 export const DEFAULT: Config = { roots: [join(homedir(), "src")], depth: 4, port: 4747, interval: 300 };
 
 const expand = (p: string): string => (p.startsWith("~") ? homedir() + p.slice(1) : p);

@@ -54,37 +54,38 @@ There are no `list`, `remove`, or `reorder` commands, because `$EDITOR ~/.cclaun
 all of them. `run` watches the file, so hand edits and `add`s from other terminals take effect
 immediately.
 
-## Watchers
+## Producers
 
 Most of what you queue by hand you did not think of -- someone else did, and it landed in a
 ledger somewhere. A review was requested. A branch started conflicting. A comment came back and
-is still sitting there. A watcher takes that off you.
+is still sitting there. A producer takes that off you.
 
-A watcher is an executable in `~/.cclaunch/watchers/` that prints task lines to stdout:
+A producer is an executable in `~/.cclaunch/producers/` that prints task lines to stdout:
 
 ```jsonl
 {"id":"pr-4821-a1b2c3d","cwd":"/Users/you/src/foo","prompt":"review the diff of PR 4821 ..."}
 {"id":"pr-4790-9f8e7d6","prompt":"PR 4790 conflicts with main. rebase it, ..."}
 ```
 
-`run` polls them, and appends the lines it has not seen to the queue. `cwd` is optional -- leave
-it out and Claude picks the directory, as it does for `add`.
+Producers are off by default. Start the runner with `cclaunch run --producers` and it polls them,
+appending the lines it has not seen to the queue. `cwd` is optional -- leave it out and Claude
+picks the directory, as it does for `add`.
 
-**Watchers do not track what they have already emitted.** They print every obligation they can
+**Producers do not track what they have already emitted.** They print every obligation they can
 still see, every time; cclaunch remembers the ids in `~/.cclaunch/seen` and only queues the new
 ones. So make the id a function of what you saw and not of when you saw it -- `pr-4821-<head sha>`
 rather than a timestamp. Then the same pull request stays quiet until it is pushed to again, and a
 task that failed halfway does not fire twice. Delete a line from `seen` to run it once more.
 
-cclaunch ships no watchers, and knows nothing about GitHub, Slack, or anything else you point one
+cclaunch ships no producers, and knows nothing about GitHub, Slack, or anything else you point one
 at. Your queries and your prompts carry your repositories, your colleagues, your tokens; this
 repository is public. They stay yours -- keep the directory in a private repo of its own if you
 like.
 
-### What a watcher may feed you
+### What a producer may feed you
 
 **cclaunch does not isolate anything.** cmux gives the launched Claude a worktree and a plain
-shell -- your filesystem, your ssh keys, your gh token. So whatever a watcher ingests is read by
+shell -- your filesystem, your ssh keys, your gh token. So whatever a producer ingests is read by
 an agent running as you, and text that reaches an agent is not inert: a pull request can carry
 instructions in a comment or a fixture as easily as it carries code.
 
@@ -92,7 +93,7 @@ instructions in a comment or a fixture as easily as it carries code.
 
 That is the line you cross every time you check out a colleague's branch and run its tests, and
 automating it crosses nothing new. A drive-by pull request on a public repository is a different
-thing entirely, and no filter in a watcher is a sandbox. Review those by hand, or in a container.
+thing entirely, and no filter in a producer is a sandbox. Review those by hand, or in a container.
 
 ## Config
 
@@ -102,8 +103,8 @@ thing entirely, and no filter in a watcher is a sandbox. Review those by hand, o
 { "roots": ["~/src"], "depth": 4, "port": 4747, "interval": 300 }
 ```
 
-`interval` is the seconds between watcher polls, and there is only one of it. A watcher that wants
-to run less often can say nothing until it is ready.
+`interval` is the seconds between producer polls (only when `run --producers` is on), and there is
+only one of it. A producer that wants to run less often can say nothing until it is ready.
 
 `roots` and `depth` bound the search for candidate directories; a directory containing `.git` is a
 candidate and is not descended into.
