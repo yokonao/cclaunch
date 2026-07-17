@@ -67,7 +67,7 @@ A producer is an executable in `~/.cclaunch/producers/` that prints task lines t
 {"id":"pr-4790-9f8e7d6","prompt":"PR 4790 conflicts with main. rebase it, ..."}
 ```
 
-Producers are off by default. Start the runner with `cclaunch run --producers` and it polls them,
+Producers are off by default. Set `"producers": true` in `config.json` and `run` polls them,
 appending the lines it has not seen to the queue. `cwd` is optional -- leave it out and Claude
 picks the directory, as it does for `add`.
 
@@ -100,11 +100,12 @@ thing entirely, and no filter in a producer is a sandbox. Review those by hand, 
 `~/.cclaunch/config.json`, optional, merged over the defaults:
 
 ```json
-{ "roots": ["~/src"], "depth": 4, "port": 4747, "interval": 300 }
+{ "roots": ["~/src"], "depth": 4, "port": 4747, "producers": false, "interval": 300 }
 ```
 
-`interval` is the seconds between producer polls (only when `run --producers` is on), and there is
-only one of it. A producer that wants to run less often can say nothing until it is ready.
+`producers` turns producer polling on; it is off by default. `interval` is the seconds between
+polls, and there is only one of it. A producer that wants to run less often can say nothing until
+it is ready.
 
 `roots` and `depth` bound the search for candidate directories; a directory containing `.git` is a
 candidate and is not descended into.

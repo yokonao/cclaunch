@@ -9,11 +9,11 @@ import * as produce from "./produce.ts";
 import * as queue from "./queue.ts";
 import * as web from "./web.ts";
 
-const USAGE = `cclaunch run [--producers]           watch the queue and launch tasks (run inside cmux)
+const USAGE = `cclaunch run                         watch the queue and launch tasks (run inside cmux)
 cclaunch add [-C <dir>] "<prompt>"  append a task; without -C, Claude picks the directory
 
 run also serves a one-field web form on 127.0.0.1, for prompts too long to type in a shell.
-With --producers it also polls the producers -- executables that print task lines of their own.
+With "producers": true in config it also polls the producers -- executables that print task lines.
 
 queue:     ${queue.FILE}  (reorder / delete with $EDITOR)
 producers: ${produce.PRODUCERS}  (seen ids: ${produce.SEEN} -- delete a line to run it again)
@@ -49,22 +49,13 @@ async function cmdAdd(argv: string[]): Promise<void> {
   log(`queued ${task.id}  ${task.cwd}  ${task.prompt}`);
 }
 
-async function cmdRun(argv: string[]): Promise<never> {
-  let producers: boolean | undefined;
-  try {
-    ({
-      values: { producers },
-    } = parseArgs({ args: argv, options: { producers: { type: "boolean" } } }));
-  } catch (e) {
-    die(message(e));
-  }
-
+async function cmdRun(): Promise<never> {
   mkdirSync(queue.DIR, { recursive: true });
-  const { port, interval } = config.config();
+  const { port, producers, interval } = config.config();
   web.serve(port, log);
 
-  // Off by default: polling producers runs whatever executables sit in their directory,
-  // and that is not something `run` should do unasked. --producers opts in.
+  // Off unless config.json opts in: polling runs whatever executables sit in the producers
+  // directory, and that is not something `run` should do unasked.
   //
   // Alongside the launch loop, not inside it: a producer must still be polled while the
   // queue is empty and the loop is parked, and a slow one must not hold up a launch.
@@ -129,5 +120,5 @@ async function cmdRun(argv: string[]): Promise<never> {
 
 const [cmd, ...args] = process.argv.slice(2);
 if (cmd === "add") await cmdAdd(args);
-else if (cmd === "run") await cmdRun(args);
+else if (cmd === "run") await cmdRun();
 else die(cmd ? `unknown command "${cmd}"` : "no command given");
