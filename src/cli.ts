@@ -5,21 +5,23 @@ import { parseArgs } from "node:util";
 import { enqueue } from "./add.ts";
 import * as cmux from "./cmux.ts";
 import * as config from "./config.ts";
+import * as logging from "./log.ts";
 import * as produce from "./produce.ts";
 import * as queue from "./queue.ts";
 import * as web from "./web.ts";
 
-const USAGE = `cclaunch run                         watch the queue and launch tasks (run inside cmux)
-cclaunch add [-C <dir>] "<prompt>"  append a task; without -C, Claude picks the directory
+const USAGE = `cclaunch run [--log-level debug|info]  watch the queue and launch tasks (run inside cmux)
+cclaunch add [-C <dir>] "<prompt>"     append a task; without -C, Claude picks the directory
 
 run also serves a one-field web form on 127.0.0.1, for prompts too long to type in a shell.
 With "producers": true in config it also polls the producers -- executables that print task lines.
+--log-level debug traces each poll (default info).
 
 queue:     ${queue.FILE}  (reorder / delete with $EDITOR)
 producers: ${produce.PRODUCERS}  (seen ids: ${produce.SEEN} -- delete a line to run it again)
 config:    ${config.FILE}  ${JSON.stringify(config.DEFAULT)}`;
 
-const log = (...args: unknown[]): void => console.log(new Date().toISOString(), ...args);
+const log = logging.make("info");
 
 function die(msg: string): never {
   console.error(`cclaunch: ${msg}\n\n${USAGE}`);
@@ -49,7 +51,18 @@ async function cmdAdd(argv: string[]): Promise<void> {
   log(`queued ${task.id}  ${task.cwd}  ${task.prompt}`);
 }
 
-async function cmdRun(): Promise<never> {
+async function cmdRun(argv: string[]): Promise<never> {
+  let level: string | undefined;
+  try {
+    ({
+      values: { "log-level": level },
+    } = parseArgs({ args: argv, options: { "log-level": { type: "string" } } }));
+  } catch (e) {
+    die(message(e));
+  }
+  if (level !== undefined && !logging.isLevel(level)) die(`unknown log level "${level}" (debug|info)`);
+  const log = logging.make(level ?? "info");
+
   mkdirSync(queue.DIR, { recursive: true });
   const { port, producers, interval } = config.config();
   web.serve(port, log);
@@ -120,5 +133,5 @@ async function cmdRun(): Promise<never> {
 
 const [cmd, ...args] = process.argv.slice(2);
 if (cmd === "add") await cmdAdd(args);
-else if (cmd === "run") await cmdRun();
+else if (cmd === "run") await cmdRun(args);
 else die(cmd ? `unknown command "${cmd}"` : "no command given");

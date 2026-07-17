@@ -1,6 +1,7 @@
 import { appendFileSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { enqueue } from "./add.ts";
+import type { Log } from "./log.ts";
 import { DIR } from "./queue.ts";
 
 // A producer is an executable that prints task lines to stdout. cclaunch runs it and
@@ -74,7 +75,7 @@ export function producers(): string[] {
     .sort();
 }
 
-async function run(path: string): Promise<string> {
+async function run(path: string, log: Log): Promise<string> {
   assertPrivate(path);
   const proc = Bun.spawn([path], { stdout: "pipe", stderr: "pipe", cwd: PRODUCERS });
   let killed = false;
@@ -92,23 +93,28 @@ async function run(path: string): Promise<string> {
     // Half a listing is worse than none: a producer that dies partway looks, to the id
     // diff below, exactly like one whose obligations were met. Drop the batch.
     if (code !== 0) throw new Error(stderr.trim() || `exited with ${code}`);
+    // A producer's stderr is its own log; surface it only when we are asked to be verbose.
+    if (stderr.trim()) log.debug(`producer ${basename(path)} stderr: ${stderr.trim()}`);
     return stdout;
   } finally {
     clearTimeout(timer);
   }
 }
 
-export async function poll(log: (...args: unknown[]) => void): Promise<void> {
+export async function poll(log: Log): Promise<void> {
   const done = seen();
-  for (const path of producers()) {
+  const paths = producers();
+  log.debug(`polling ${paths.length} producer(s)`);
+  for (const path of paths) {
     const name = basename(path);
     let lines: Line[];
     try {
-      lines = parse(await run(path));
+      lines = parse(await run(path, log));
     } catch (e) {
       log(`producer ${name}: ${e instanceof Error ? e.message : String(e)}`);
       continue;
     }
+    log.debug(`producer ${name}: ${lines.length} line(s), ${lines.filter((l) => !done.has(l.id)).length} new`);
     for (const line of lines) {
       if (done.has(line.id)) continue;
       try {
