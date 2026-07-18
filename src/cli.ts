@@ -96,8 +96,13 @@ async function cmdRun(argv: string[]): Promise<never> {
   watchDir(queue.DIR, (_, name) => {
     if (name === basename(queue.FILE)) wake();
   });
-  const changed = () => new Promise<void>((r) => (wake = r));
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  // The watch only decides how *fast* we notice, never *whether*: it has gone silent
+  // across a laptop sleep and left a queued task sitting there overnight, and it never
+  // did report `remove`'s rename under the queue's own name. Re-reading a small file
+  // every few seconds costs nothing and makes a missed event a delay instead of a stall.
+  const PARK = 5000;
+  const changed = () => Promise.race([new Promise<void>((r) => (wake = r)), sleep(PARK)]);
 
   log(`watching ${queue.FILE}`);
   for (;;) {
