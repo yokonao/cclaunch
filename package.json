@@ -1,7 +1,7 @@
 {
   "name": "cclaunch",
   "version": "0.1.0",
-  "description": "Queue tasks, auto-launch Claude Code in a cmux workspace",
+  "description": "Queue tasks, auto-launch coding agents in a cmux workspace",
   "license": "MIT",
   "type": "module",
   "bin": {

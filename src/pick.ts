@@ -1,5 +1,6 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import type { Config } from "./config.ts";
 
 // A repo is a leaf: once a directory has .git, its subdirectories are its own
 // business, not separate candidates.
@@ -43,12 +44,17 @@ export function validate(answer: string, dirs: string[]): string | undefined {
   return line && dirs.includes(line) ? line : undefined;
 }
 
-export async function pick(task: string, dirs: string[]): Promise<string | undefined> {
-  const proc = Bun.spawn(["claude", "-p", "--model", "haiku", promptFor(task, dirs)], {
+export function command(agent: Config["agent"], prompt: string): string[] {
+  if (agent === "claude") return ["claude", "-p", "--model", "haiku", prompt];
+  return ["codex", "exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", prompt];
+}
+
+export async function pick(task: string, dirs: string[], agent: Config["agent"]): Promise<string | undefined> {
+  const proc = Bun.spawn(command(agent, promptFor(task, dirs)), {
     stdout: "pipe",
     stderr: "inherit",
   });
   const [answer, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
-  if (code !== 0) throw new Error(`claude exited with ${code}`);
+  if (code !== 0) throw new Error(`${agent} exited with ${code}`);
   return validate(answer, dirs);
 }

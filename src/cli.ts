@@ -64,7 +64,7 @@ async function cmdRun(argv: string[]): Promise<never> {
   const log = logging.make(level ?? "info");
 
   mkdirSync(queue.DIR, { recursive: true });
-  const { port, producers, interval } = config.config();
+  const { agent, port, producers, interval } = config.config();
   web.serve(port, log);
 
   // Off unless config.json opts in: polling runs whatever executables sit in the producers
@@ -125,7 +125,7 @@ async function cmdRun(argv: string[]): Promise<never> {
       if (await cmux.hasWorkspace(cmux.workspaceName(task.id))) {
         log(`already running ${task.id}, dropping`);
       } else {
-        await cmux.launch(task);
+        await cmux.launch(task, agent);
         log(`launched ${task.id}  ${task.cwd}  ${task.prompt}`);
       }
       queue.remove(task.id);

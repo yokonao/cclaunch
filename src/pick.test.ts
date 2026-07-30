@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { candidates, validate } from "./pick.ts";
+import { candidates, command, validate } from "./pick.ts";
 
 function tree(...dirs: string[]): string {
   const root = mkdtempSync(join(tmpdir(), "cclaunch-"));
@@ -25,4 +25,17 @@ test("validate accepts only a listed path", () => {
   expect(validate("Sure! Here you go:\n/src/bar", dirs)).toBe("/src/bar");
   expect(validate("/src/baz", dirs)).toBeUndefined();
   expect(validate("NONE", dirs)).toBeUndefined();
+});
+
+test("command uses the configured agent", () => {
+  expect(command("claude", "pick")).toEqual(["claude", "-p", "--model", "haiku", "pick"]);
+  expect(command("codex", "pick")).toEqual([
+    "codex",
+    "exec",
+    "--ephemeral",
+    "--sandbox",
+    "read-only",
+    "--skip-git-repo-check",
+    "pick",
+  ]);
 });

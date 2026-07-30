@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { DIR } from "./queue.ts";
 
 export type Config = {
+  agent: "claude" | "codex";
   roots: string[];
   depth: number;
   port: number;
@@ -17,7 +18,14 @@ export const FILE = join(DIR, "config.json");
 // so `run` does it only when this asks. `interval` is the seconds between polls -- one for
 // every producer. A producer that wants to run less often can say nothing most of the time,
 // which is cheaper than teaching cclaunch a schedule.
-export const DEFAULT: Config = { roots: [join(homedir(), "src")], depth: 4, port: 4747, producers: false, interval: 300 };
+export const DEFAULT: Config = {
+  agent: "claude",
+  roots: [join(homedir(), "src")],
+  depth: 4,
+  port: 4747,
+  producers: false,
+  interval: 300,
+};
 
 const expand = (p: string): string => (p.startsWith("~") ? homedir() + p.slice(1) : p);
 
@@ -29,8 +37,12 @@ export function config(): Config {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") return DEFAULT;
     throw e;
   }
-  const { roots, depth, port, producers, interval } = JSON.parse(raw) as Partial<Config>;
+  const { agent, roots, depth, port, producers, interval } = JSON.parse(raw) as Partial<Config>;
+  if (agent !== undefined && agent !== "claude" && agent !== "codex") {
+    throw new Error(`unknown agent "${agent}" (claude|codex)`);
+  }
   return {
+    agent: agent ?? DEFAULT.agent,
     roots: (roots ?? DEFAULT.roots).map(expand),
     depth: depth ?? DEFAULT.depth,
     port: port ?? DEFAULT.port,

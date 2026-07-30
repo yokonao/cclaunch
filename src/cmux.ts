@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import type { Config } from "./config.ts";
 import { promptFile, type Task } from "./queue.ts";
 
 async function cmux(...args: string[]): Promise<string> {
@@ -20,7 +21,8 @@ export const workspaceName = (id: string): string => `cclaunch-${id}`;
 // the user typed is ever parsed as shell syntax. Only our own path is quoted.
 export const shellQuote = (s: string): string => `'${s.replaceAll("'", `'\\''`)}'`;
 
-export const command = (id: string): string => `claude "$(cat ${shellQuote(promptFile(id))})"`;
+export const command = (id: string, agent: Config["agent"]): string =>
+  `${agent} "$(cat ${shellQuote(promptFile(id))})"`;
 
 // Shape-agnostic: cmux's JSON nests workspaces, and the name field has been
 // spelled both `name` and `title`. Matching on a wrong shape would silently
@@ -41,9 +43,9 @@ export async function hasWorkspace(name: string): Promise<boolean> {
   return names(JSON.parse(await cmux("workspace", "list", "--json"))).includes(name);
 }
 
-export async function launch({ id, cwd, prompt }: Task): Promise<void> {
+export async function launch({ id, cwd, prompt }: Task, agent: Config["agent"]): Promise<void> {
   const file = promptFile(id);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, prompt);
-  await cmux("new-workspace", "--name", workspaceName(id), "--cwd", cwd, "--command", command(id));
+  await cmux("new-workspace", "--name", workspaceName(id), "--cwd", cwd, "--command", command(id, agent));
 }

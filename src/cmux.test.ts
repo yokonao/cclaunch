@@ -8,7 +8,8 @@ test("shellQuote escapes single quotes", () => {
 });
 
 test("command reads the prompt from a file, never inlines it", () => {
-  expect(command("abc")).toBe(`claude "$(cat ${shellQuote(promptFile("abc"))})"`);
+  expect(command("abc", "claude")).toBe(`claude "$(cat ${shellQuote(promptFile("abc"))})"`);
+  expect(command("abc", "codex")).toBe(`codex "$(cat ${shellQuote(promptFile("abc"))})"`);
 });
 
 test("names collects name/title at any depth", () => {

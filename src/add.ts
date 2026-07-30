@@ -16,9 +16,10 @@ export async function enqueue(rawPrompt: string, rawCwd?: string, id = queue.new
 
   let cwd = rawCwd?.trim() ? resolve(rawCwd.trim()) : undefined;
   if (!cwd) {
-    const dirs = pick.candidates(config.config());
+    const cfg = config.config();
+    const dirs = pick.candidates(cfg);
     if (!dirs.length) throw new Error(`no repositories found under the roots in ${config.FILE}`);
-    cwd = await pick.pick(prompt, dirs);
+    cwd = await pick.pick(prompt, dirs, cfg.agent);
     if (!cwd) throw new Error(`could not tell which directory this belongs to; pick one\n\n${dirs.join("\n")}`);
   }
   if (!statSync(cwd, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`not a directory: ${cwd}`);

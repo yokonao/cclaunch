@@ -1,15 +1,15 @@
 # cclaunch
 
-Queue a task, and Claude Code starts working on it in its own [cmux](https://github.com/manaflow-ai/cmux) workspace.
+Queue a task, and Claude Code or Codex starts working on it in its own [cmux](https://github.com/manaflow-ai/cmux) workspace.
 
 You think of something while away from the repo, type one line, and forget about it. cclaunch picks
-the task off the queue, opens a workspace in the right directory, and launches `claude` there. It
+the task off the queue, opens a workspace in the right directory, and launches the configured agent there. It
 does the launching and nothing else -- cmux notifies you when a session needs input, and the
-transcript stays in `~/.claude/projects`.
+transcript stays with the agent.
 
 ## Requires
 
-`bun`, `cmux`, and `claude` on your `PATH`.
+`bun`, `cmux`, and the configured agent (`claude` or `codex`) on your `PATH`.
 
 ## Install
 
@@ -35,7 +35,7 @@ cclaunch add -C ~/src/foo "fix the type errors"
 cclaunch add "rewrite the cclaunch README"      # -C omitted: Claude picks the directory
 ```
 
-Without `-C`, the prompt is handed to `claude -p --model haiku` along with the repositories found
+Without `-C`, the prompt is handed to the configured agent along with the repositories found
 under your roots, and it picks one. The answer is checked against that list, and `add` fails if it
 does not match -- launching in a directory you never asked for is worse than making you type `-C`.
 
@@ -100,10 +100,11 @@ thing entirely, and no filter in a producer is a sandbox. Review those by hand, 
 `~/.cclaunch/config.json`, optional, merged over the defaults:
 
 ```json
-{ "roots": ["~/src"], "depth": 4, "port": 4747, "producers": false, "interval": 300 }
+{ "agent": "claude", "roots": ["~/src"], "depth": 4, "port": 4747, "producers": false, "interval": 300 }
 ```
 
-`producers` turns producer polling on; it is off by default. `interval` is the seconds between
+`agent` selects `claude` or `codex`; it defaults to `claude`. `producers` turns producer polling
+on; it is off by default. `interval` is the seconds between
 polls, and there is only one of it. A producer that wants to run less often can say nothing until
 it is ready.
 
