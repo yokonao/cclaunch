@@ -38,7 +38,7 @@ Reply with exactly one path copied from the list, and nothing else.
 If none of them clearly fits, reply NONE.`;
 
 // The answer must be a member of the list: a hallucinated path would launch
-// Claude somewhere the user never asked for, silently.
+// an agent somewhere the user never asked for, silently.
 export function validate(answer: string, dirs: string[]): string | undefined {
   const line = answer.trim().split("\n").at(-1)?.trim();
   return line && dirs.includes(line) ? line : undefined;

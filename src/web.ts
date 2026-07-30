@@ -197,12 +197,12 @@ function page(flash: string, dirs: string[], home: string): string {
   <form method="post" action="/">
     <div class="field">
       <label for="prompt">Prompt</label>
-      <textarea id="prompt" name="prompt" autofocus placeholder="What should Claude do?"></textarea>
+      <textarea id="prompt" name="prompt" autofocus placeholder="What should the agent do?"></textarea>
     </div>
     <div class="field combo">
       <label for="cwd">Directory</label>
       <input id="cwd" name="cwd" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="dirs"
-             placeholder="leave empty and Claude picks one">
+             placeholder="leave empty and the agent picks one">
       <ul id="dirs" role="listbox" hidden></ul>
     </div>
     <div class="actions">

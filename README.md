@@ -32,7 +32,7 @@ Then queue tasks from any terminal:
 
 ```sh
 cclaunch add -C ~/src/foo "fix the type errors"
-cclaunch add "rewrite the cclaunch README"      # -C omitted: Claude picks the directory
+cclaunch add "rewrite the cclaunch README"      # -C omitted: the agent picks the directory
 ```
 
 Without `-C`, the prompt is handed to the configured agent along with the repositories found
@@ -68,7 +68,7 @@ A producer is an executable in `~/.cclaunch/producers/` that prints task lines t
 ```
 
 Producers are off by default. Set `"producers": true` in `config.json` and `run` polls them,
-appending the lines it has not seen to the queue. `cwd` is optional -- leave it out and Claude
+appending the lines it has not seen to the queue. `cwd` is optional -- leave it out and the agent
 picks the directory, as it does for `add`.
 
 **Producers do not track what they have already emitted.** They print every obligation they can
@@ -84,7 +84,7 @@ like.
 
 ### What a producer may feed you
 
-**cclaunch does not isolate anything.** cmux gives the launched Claude a worktree and a plain
+**cclaunch does not isolate anything.** cmux gives the launched agent a worktree and a plain
 shell -- your filesystem, your ssh keys, your gh token. So whatever a producer ingests is read by
 an agent running as you, and text that reaches an agent is not inert: a pull request can carry
 instructions in a comment or a fixture as easily as it carries code.

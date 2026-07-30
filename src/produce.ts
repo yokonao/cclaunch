@@ -11,7 +11,7 @@ import { DIR } from "./queue.ts";
 // and this repository is public. Keeping the two apart means none of that has anywhere
 // to leak into.
 //
-// cclaunch gives the launched Claude NO isolation: cmux hands it a worktree and a plain
+// cclaunch gives the launched agent NO isolation: cmux hands it a worktree and a plain
 // shell, with your ssh keys, your gh token, and your filesystem. Whatever a producer
 // feeds in is read by an agent running as you. So a producer must only ingest content
 // from authors whose code you would already run unread on this machine -- your own

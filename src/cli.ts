@@ -11,7 +11,7 @@ import * as queue from "./queue.ts";
 import * as web from "./web.ts";
 
 const USAGE = `cclaunch run [--log-level debug|info]  watch the queue and launch tasks (run inside cmux)
-cclaunch add [-C <dir>] "<prompt>"     append a task; without -C, Claude picks the directory
+cclaunch add [-C <dir>] "<prompt>"     append a task; without -C, the agent picks the directory
 
 run also serves a one-field web form on 127.0.0.1, for prompts too long to type in a shell.
 With "producers": true in config it also polls the producers -- executables that print task lines.
