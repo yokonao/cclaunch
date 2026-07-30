@@ -7,6 +7,7 @@ import * as cmux from "./cmux.ts";
 import * as config from "./config.ts";
 import * as logging from "./log.ts";
 import * as produce from "./produce.ts";
+import { startProducerPolling } from "./producer-poll.ts";
 import * as queue from "./queue.ts";
 import * as web from "./web.ts";
 
@@ -75,20 +76,17 @@ async function cmdRun(argv: string[]): Promise<never> {
   // Skipping a tick that overlaps the last is enough -- producers are stateless, so the
   // next one sees everything this one would have.
   if (producers) {
-    let polling = false;
-    const poll = async (): Promise<void> => {
-      if (polling) return;
-      polling = true;
-      try {
-        await produce.poll(log);
-      } catch (e) {
-        log(`producers: ${message(e)}`);
-      } finally {
-        polling = false;
-      }
-    };
-    setInterval(poll, interval * 1000);
-    void poll();
+    startProducerPolling(
+      async () => {
+        try {
+          await produce.poll(log);
+        } catch (e) {
+          log(`producers: ${message(e)}`);
+        }
+      },
+      interval * 1000,
+      log.debug,
+    );
   }
 
   let wake: () => void = () => {};
