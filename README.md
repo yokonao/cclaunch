@@ -9,14 +9,22 @@ transcript stays with the agent.
 
 ## Requires
 
-`bun`, `cmux`, and the configured agent (`claude` or `codex`) on your `PATH`.
+`cmux` and the configured agent (`claude` or `codex`) on your `PATH`.
 
 ## Install
 
+Download a binary from the [releases page](https://github.com/yokonao/cclaunch/releases) and
+put it on your `PATH`, or build from source with Go:
+
+```sh
+go install github.com/yokonao/cclaunch/cmd/cclaunch@latest
+```
+
+or clone and build locally:
+
 ```sh
 git clone https://github.com/yokonao/cclaunch && cd cclaunch
-bun install
-./install.sh            # drops a `cclaunch` shim in ~/.local/bin (pass a dir to change it)
+./install.sh            # builds and drops `cclaunch` in ~/.local/bin (pass a dir to change it)
 ```
 
 ## Use

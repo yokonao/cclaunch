@@ -1,9 +1,23 @@
-import { homedir } from "node:os";
-import { enqueue } from "./add.ts";
-import * as config from "./config.ts";
-import * as pick from "./pick.ts";
+// Package webui serves a one-field form for prompts too long to type in a
+// shell. It does exactly what the add command does: append one line.
+package webui
 
-const CSS = `
+import (
+	"encoding/json"
+	"fmt"
+	"html"
+	"net"
+	"net/http"
+	"os"
+	"strings"
+
+	"github.com/yokonao/cclaunch/internal/cfg"
+	"github.com/yokonao/cclaunch/internal/enqueue"
+	"github.com/yokonao/cclaunch/internal/logx"
+	"github.com/yokonao/cclaunch/internal/pick"
+)
+
+const css = `
 :root {
   --bg: #f0eee6;
   --surface: #ffffff;
@@ -170,60 +184,19 @@ kbd {
   color: var(--faint);
   overflow-wrap: anywhere;
 }
-`;
+`
 
-const escape = (s: string): string =>
-  s.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
-  );
-
-// `</script>` inside a path would end the tag early.
-const json = (v: unknown): string => JSON.stringify(v).replace(/</g, "\\u003c");
-
-function page(flash: string, dirs: string[], home: string): string {
-  return `<!doctype html>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>cclaunch</title>
-<style>${CSS}</style>
-<header>
-  <span class="mark"></span>
-  <h1>cclaunch</h1>
-  <span class="sub">queue a task, cmux launches it</span>
-</header>
-<div class="container">
-  ${flash}
-  <form method="post" action="/">
-    <div class="field">
-      <label for="prompt">Prompt</label>
-      <textarea id="prompt" name="prompt" autofocus placeholder="What should the agent do?"></textarea>
-    </div>
-    <div class="field combo">
-      <label for="cwd">Directory</label>
-      <input id="cwd" name="cwd" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="dirs"
-             placeholder="leave empty and the agent picks one">
-      <ul id="dirs" role="listbox" hidden></ul>
-    </div>
-    <div class="actions">
-      <button type="submit">Queue</button>
-      <span class="hint"><kbd>⌘</kbd> + <kbd>Enter</kbd> to submit</span>
-    </div>
-  </form>
-</div>
-<script>
+const script = `
 document.querySelector('textarea').addEventListener('keydown', (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') e.target.form.requestSubmit();
 });
 
-const DIRS = ${json(dirs)};
-const HOME = ${json(home)};
+const DIRS = %s;
+const HOME = %s;
 const input = document.getElementById('cwd');
 const list = document.getElementById('dirs');
 let active = -1;
 
-// The full path is what gets submitted, but it is too long to read; show the
-// repo name first and the parent, home-abbreviated, underneath.
 const render = () => {
   const q = input.value.trim().toLowerCase();
   const hits = DIRS.filter((d) => d.toLowerCase().includes(q)).slice(0, 50);
@@ -251,7 +224,7 @@ const open = (yes) => {
 const highlight = (i) => {
   const items = [...list.children];
   if (!items.length) return;
-  active = (i + items.length) % items.length;
+  active = (i + items.length) %% items.length;
   items.forEach((li, n) => li.setAttribute('aria-selected', String(n === active)));
   items[active].scrollIntoView({ block: 'nearest' });
 };
@@ -275,42 +248,132 @@ list.addEventListener('mousedown', (e) => {
   const li = e.target.closest('li');
   if (li) choose(li);
 });
-</script>`;
+`
+
+// jsonForScript encodes v as JSON safe to embed inside a <script> tag: a
+// literal "</script>" in a path would end the tag early.
+func jsonForScript(v any) (string, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return strings.ReplaceAll(string(b), "<", "\\u003c"), nil
 }
 
-const html = (body: string, status = 200): Response =>
-  new Response(body, { status, headers: { "content-type": "text/html; charset=utf-8" } });
+func page(flash string, dirs []string, home string) (string, error) {
+	dirsJSON, err := jsonForScript(dirs)
+	if err != nil {
+		return "", err
+	}
+	homeJSON, err := jsonForScript(home)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(`<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cclaunch</title>
+<style>%s</style>
+<header>
+  <span class="mark"></span>
+  <h1>cclaunch</h1>
+  <span class="sub">queue a task, cmux launches it</span>
+</header>
+<div class="container">
+  %s
+  <form method="post" action="/">
+    <div class="field">
+      <label for="prompt">Prompt</label>
+      <textarea id="prompt" name="prompt" autofocus placeholder="What should the agent do?"></textarea>
+    </div>
+    <div class="field combo">
+      <label for="cwd">Directory</label>
+      <input id="cwd" name="cwd" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="dirs"
+             placeholder="leave empty and the agent picks one">
+      <ul id="dirs" role="listbox" hidden></ul>
+    </div>
+    <div class="actions">
+      <button type="submit">Queue</button>
+      <span class="hint"><kbd>⌘</kbd> + <kbd>Enter</kbd> to submit</span>
+    </div>
+  </form>
+</div>
+<script>%s</script>`, css, flash, fmt.Sprintf(script, dirsJSON, homeJSON)), nil
+}
 
-export function serve(port: number, log: (...args: unknown[]) => void): void {
-  const home = homedir();
-  const dirs = (): string[] => {
-    try {
-      return pick.candidates(config.config());
-    } catch {
-      return [];
-    }
-  };
+func writeHTML(w http.ResponseWriter, body string, status int) {
+	w.Header().Set("content-type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(body))
+}
 
-  const server = Bun.serve({
-    port,
-    hostname: "127.0.0.1",
-    fetch: async (req) => {
-      const { pathname } = new URL(req.url);
-      if (pathname !== "/") return new Response("not found", { status: 404 });
-      if (req.method === "GET") return html(page("", dirs(), home));
-      if (req.method !== "POST") return new Response("method not allowed", { status: 405 });
+// Serve starts the web form listening on 127.0.0.1:port and returns once it
+// is ready to accept connections.
+func Serve(port int, log *logx.Logger) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
 
-      const form = await req.formData();
-      try {
-        const task = await enqueue(String(form.get("prompt") ?? ""), String(form.get("cwd") ?? ""));
-        log(`queued ${task.id}  ${task.cwd}  ${task.prompt.split("\n")[0]}`);
-        const flash = `<div class="flash">Queued <strong>${escape(task.id)}</strong><div class="path">${escape(task.cwd)}</div></div>`;
-        return html(page(flash, dirs(), home));
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        return html(page(`<div class="flash err">${escape(msg)}</div>`, dirs(), home), 400);
-      }
-    },
-  });
-  log(`web on http://127.0.0.1:${server.port}`);
+	dirs := func() []string {
+		c, err := cfg.Load()
+		if err != nil {
+			return nil
+		}
+		return pick.Candidates(c.Roots, c.Depth)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			body, err := page("", dirs(), home)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeHTML(w, body, http.StatusOK)
+		case http.MethodPost:
+			if err := r.ParseForm(); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			task, err := enqueue.Enqueue(r.Context(), r.FormValue("prompt"), r.FormValue("cwd"), "")
+			if err != nil {
+				body, perr := page(fmt.Sprintf(`<div class="flash err">%s</div>`, html.EscapeString(err.Error())), dirs(), home)
+				if perr != nil {
+					http.Error(w, perr.Error(), http.StatusInternalServerError)
+					return
+				}
+				writeHTML(w, body, http.StatusBadRequest)
+				return
+			}
+			log.Info(fmt.Sprintf("queued %s  %s  %s", task.ID, task.Cwd, strings.SplitN(task.Prompt, "\n", 2)[0]))
+			flash := fmt.Sprintf(`<div class="flash">Queued <strong>%s</strong><div class="path">%s</div></div>`,
+				html.EscapeString(task.ID), html.EscapeString(task.Cwd))
+			body, err := page(flash, dirs(), home)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeHTML(w, body, http.StatusOK)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return err
+	}
+	log.Info(fmt.Sprintf("web on http://127.0.0.1:%d", ln.Addr().(*net.TCPAddr).Port))
+	server := &http.Server{Handler: mux}
+	go func() {
+		_ = server.Serve(ln)
+	}()
+	return nil
 }
