@@ -65,4 +65,3 @@ func TestNewIDIsUnique(t *testing.T) {
 		t.Errorf("expected distinct ids, got %q twice", a)
 	}
 }
-
