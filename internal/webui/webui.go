@@ -307,9 +307,10 @@ func writeHTML(w http.ResponseWriter, body string, status int) {
 	_, _ = w.Write([]byte(body))
 }
 
-// Serve starts the web form listening on 127.0.0.1:port and returns once it
-// is ready to accept connections.
-func Serve(port int, log *logx.Logger) error {
+// Serve starts the web form listening on the unix socket at socket, or on
+// 127.0.0.1:port when socket is empty, and returns once it is ready to
+// accept connections.
+func Serve(port int, socket string, log *logx.Logger) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -366,14 +367,38 @@ func Serve(port int, log *logx.Logger) error {
 		}
 	})
 
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	ln, err := listen(port, socket)
 	if err != nil {
 		return err
 	}
-	log.Info(fmt.Sprintf("web on http://127.0.0.1:%d", ln.Addr().(*net.TCPAddr).Port))
+	if socket != "" {
+		log.Info(fmt.Sprintf("web on unix:%s", socket))
+	} else {
+		log.Info(fmt.Sprintf("web on http://127.0.0.1:%d", ln.Addr().(*net.TCPAddr).Port))
+	}
 	server := &http.Server{Handler: mux}
 	go func() {
 		_ = server.Serve(ln)
 	}()
 	return nil
+}
+
+func listen(port int, socket string) (net.Listener, error) {
+	if socket == "" {
+		return net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	}
+	// A socket file left behind by a run that did not exit cleanly would
+	// make Listen fail with "address already in use".
+	if err := os.Remove(socket); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	ln, err := net.Listen("unix", socket)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(socket, 0o600); err != nil {
+		_ = ln.Close()
+		return nil, err
+	}
+	return ln, nil
 }
