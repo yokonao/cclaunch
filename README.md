@@ -13,19 +13,7 @@ transcript stays with the agent.
 
 ## Install
 
-Download a binary from the [releases page](https://github.com/yokonao/cclaunch/releases) and
-put it on your `PATH`, or build from source with Go:
-
-```sh
-go install github.com/yokonao/cclaunch/cmd/cclaunch@latest
-```
-
-or clone and build locally:
-
-```sh
-git clone https://github.com/yokonao/cclaunch && cd cclaunch
-./install.sh            # builds and drops `cclaunch` in ~/.local/bin (pass a dir to change it)
-```
+See [docs/install.md](docs/install.md).
 
 ## Use
 
