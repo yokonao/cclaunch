@@ -54,7 +54,7 @@ func run(ctx context.Context, log *logx.Logger) error {
 	if err != nil {
 		return err
 	}
-	if err := webui.Serve(config.Port, log); err != nil {
+	if err := webui.Serve(config.Port, config.Socket, log); err != nil {
 		return err
 	}
 

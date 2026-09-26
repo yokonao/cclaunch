@@ -17,6 +17,7 @@ type Config struct {
 	Roots     []string `json:"roots"`
 	Depth     int      `json:"depth"`
 	Port      int      `json:"port"`
+	Socket    string   `json:"socket"`
 	Producers bool     `json:"producers"`
 	Interval  int      `json:"interval"`
 }
@@ -59,6 +60,7 @@ type raw struct {
 	Roots     *[]string `json:"roots"`
 	Depth     *int      `json:"depth"`
 	Port      *int      `json:"port"`
+	Socket    *string   `json:"socket"`
 	Producers *bool     `json:"producers"`
 	Interval  *int      `json:"interval"`
 }
@@ -98,6 +100,9 @@ func Load() (Config, error) {
 	}
 	if r.Port != nil {
 		c.Port = *r.Port
+	}
+	if r.Socket != nil {
+		c.Socket = expand(*r.Socket)
 	}
 	if r.Producers != nil {
 		c.Producers = *r.Producers

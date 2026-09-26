@@ -99,7 +99,8 @@ thing entirely, and no filter in a producer is a sandbox. Review those by hand, 
 { "agent": "claude", "roots": ["~/src"], "depth": 4, "port": 4747, "producers": false, "interval": 300 }
 ```
 
-`agent` selects `claude` or `codex`; it defaults to `claude`. `producers` turns producer polling
+`agent` selects `claude` or `codex`; it defaults to `claude`. `socket` is a path; when set, the
+web form listens on that unix socket (mode 0600) instead of `port`. `producers` turns producer polling
 on; it is off by default. `interval` is the seconds between
 polls, and there is only one of it. A producer that wants to run less often can say nothing until
 it is ready.
