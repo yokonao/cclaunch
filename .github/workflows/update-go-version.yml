@@ -1,0 +1,29 @@
+# This workflow is managed by gh actions-lock.
+
+name: Update Go version
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - run: |
+          latest=$(curl -fsSL 'https://go.dev/dl/?mode=json' | jq -r '.[0].version' | sed 's/^go//')
+          current=$(gh api "repos/$GH_REPO/contents/go.mod" -H 'Accept: application/vnd.github.raw' | awk '$1 == "go" { print $2 }')
+          [[ "$current" == "$latest" ]] && exit 0
+
+          title="Update Go to $latest"
+          [[ -n "$(gh issue list --state all --search "\"$title\" in:title" --json number -q '.[]')" ]] && exit 0
+
+          gh label create cclaunch --force
+          gh issue create --label cclaunch --title "$title" --body "リポジトリ内で Go のバージョンを指定している箇所をすべて最新の安定版（${latest}）に揃えて更新して。依存関係の更新は Dependabot が行うので触らないこと。Go バージョン差分でデグレが起きそうな箇所を調査してから、作業ブランチでコミットして push し、PR を作成して。gh pr checks --watch で CI を待ち、通ったら gh pr merge --squash でマージして。CI が失敗したら原因を調べて修正し、直せなければマージせず原因と対応方針を報告して。"
