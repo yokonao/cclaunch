@@ -108,6 +108,14 @@ it is ready.
 `roots` and `depth` bound the search for candidate directories; a directory containing `.git` is a
 candidate and is not descended into.
 
+## Development
+
+```sh
+go test ./...
+golangci-lint run
+golangci-lint fmt
+```
+
 ## License
 
 MIT
