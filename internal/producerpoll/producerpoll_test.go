@@ -125,6 +125,15 @@ func TestDoesNotOverlapPolls(t *testing.T) {
 	expectNone(t, started)
 
 	close(finish)
-	clock.tick(t, 0)
-	recv(t, started)
+	// The first poll clears its busy flag asynchronously, so a tick right after
+	// close(finish) may still be skipped.
+	for range 20 {
+		clock.tick(t, 0)
+		select {
+		case <-started:
+			return
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	t.Fatal("no poll after the first one finished")
 }
