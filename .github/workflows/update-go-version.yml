@@ -22,15 +22,15 @@ jobs:
         with:
           go-version: stable
       - run: |
-          latest=$(go env GOVERSION | sed 's/^go//')
-          branch="update-go-$latest"
-          go mod edit -go="$latest"
+          version=$(go env GOVERSION | sed 's/^go//')
+          go mod edit -go="$version"
+          branch="update-go-$version"
           git diff --quiet && exit 0
           git ls-remote --exit-code --heads origin "$branch" && exit 0
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch -c "$branch"
-          git commit -am "Update Go to $latest"
+          git commit -am "Update Go to $version"
           git push origin "$branch"
           gh pr create --fill
